@@ -1,7 +1,6 @@
-import numpy as np
+import jax.numpy as jnp
 import abc
-from numba import njit
-
+from numba import njit, jit
 
 class Cost(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -35,11 +34,17 @@ class CostCircle(Cost):
         self.dt = dt
 
     def cost_stage(self, x, u):
-        return _c_cost_stage(x, u, self.r, self.eps, self.v_target, self.dt)
+        c_circle = circle_pos(x, self.r, self.eps)
+        c_speed = circle_speed(x, self.v_target)
+        c_control = circle_control(u,self.dt)
+        return c_circle + c_speed + c_control
 
     def cost_final(self, x):
-        return _c_cost_final(x, self.r, self.eps, self.v_target)
+        c_circle = circle_pos(x, self.r, self.eps)
+        c_speed = circle_speed(x, self.v_target)
+        return c_circle + c_speed
 
+    @jit(forceobj=True)
     def cost_trj(self, x_trj, u_trj):
         """Computes the optimal controls.
         Args:
@@ -48,47 +53,26 @@ class CostCircle(Cost):
         Returns:
             total: sum of cost of stages and to reach goal
         """
-        return _c_cost_traj(x_trj, u_trj, self.r, self.eps, self.v_target, self.dt)
-
-
-@njit
+        total = 0.0
+        for n in range(u_trj.shape[0]):
+            total += self.cost_stage(x_trj[n], u_trj[n])
+        total += self.cost_final(x_trj[-1])
+        return total
+    
+@jit(forceobj=True)
 def circle_pos(x, r, eps):
-    c_circle = np.power(
-        np.sqrt(np.power(x[0], 2) + np.power(x[1], 2) + eps) - r, 2)
+    c_circle = jnp.power(
+        jnp.sqrt(jnp.power(x[0], 2) + jnp.power(x[1], 2) + eps) - r, 2)
     return c_circle
 
 
-@njit
+@jit(forceobj=True)
 def circle_speed(x, v_target):
-    c_speed = np.power(x[3] - v_target, 2)
+    c_speed = jnp.power(x[3] - v_target, 2)
     return c_speed
 
 
-@njit
+@jit(forceobj=True)
 def circle_control(u, dt):
-    c_speed = (np.power(u[0], 2) + np.power(u[1], 2)) * dt
+    c_speed = (jnp.power(u[0], 2) + jnp.power(u[1], 2)) * dt
     return c_speed
-
-
-@njit
-def _c_cost_stage(x, u, r, eps, v_target, dt):
-    c_circle = circle_pos(x, r, eps)
-    c_speed = circle_speed(x, v_target)
-    c_control = circle_control(u, dt)
-    return c_circle + c_speed + c_control
-
-
-@njit
-def _c_cost_final(x, r, eps, v_target):
-    c_circle = circle_pos(x, r, eps)
-    c_speed = circle_speed(x, v_target)
-    return c_circle + c_speed
-
-
-@njit
-def _c_cost_traj(x_trj, u_trj, r, eps, v_target, dt):
-    total = 0.0
-    for n in range(u_trj.shape[0]):
-        total += _c_cost_stage(x_trj[n], u_trj[n], r, eps, v_target, dt)
-    total += _c_cost_final(x_trj[-1], r, eps, v_target)
-    return total
