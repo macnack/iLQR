@@ -1,5 +1,5 @@
 import numpy as np
-
+import jax.numpy as jnp
 
 class CarModel:
     def __init__(self):
@@ -37,7 +37,14 @@ class CarModel:
         Returns:
             Next state [state_size].
         """
-        return x + dt * self.continuous_dynamics(x, u)
+        heading = jnp.asarray(x)[2]
+        v = jnp.asarray(x)[3]
+        steer = jnp.asarray(x)[4]
+        x_next = jnp.array(
+            [v * jnp.cos(heading), v * jnp.sin(heading),
+             v * jnp.tan(steer), jnp.asarray(u)[0], jnp.asarray(u)[1]]
+        )
+        return x + dt * x_next
 
     def rollout(self, x0, u_trj):
         """Rollout trajectory
