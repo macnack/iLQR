@@ -17,7 +17,7 @@ x_trj = car.rollout(x0, u_trj)
 
 circe = CostCircle()
 derivs = Derivatives(car, circe)
-ilqr = IterativeLQR(car,circe, derivs)
+ilqr = IterativeLQR(car, circe, derivs)
 
 x0 = np.array([-3.0, 1.0, -0.2, 0.0, 0.0])
 N = 50
@@ -31,7 +31,8 @@ x_trj, u_trj, cost_trace, regu_trace, redu_ratio_trace, redu_trace = ilqr.run_il
 
 r = 2.0
 v_target = 2.0
-eps = 1e-6  # The derivative of sqrt(x) at x=0 is undefined. Avoid by subtle smoothing
+# The derivative of sqrt(x) at x=0 is undefined. Avoid by subtle smoothing
+eps = 1e-6
 
 plt.figure(figsize=(9.5, 8))
 # Plot circle

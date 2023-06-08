@@ -36,12 +36,14 @@ class IterativeLQR(Regulator):
         redu_ratio_trace = [1]
         redu_trace = []
         regu_trace = [regulation_init]
-        
+
         # Run main loop
         for it in range(max_iter):
-            k_trj, K_trj, expected_cost_redu = backward_pass(x_trj, u_trj, regulation_init, self.derivs)
-            x_trj_new, u_trj_new = forward_pass(x_trj, u_trj, k_trj, K_trj, self.model.discrete_dynamics)
-            # Evaluate new trajectory, cost 
+            k_trj, K_trj, expected_cost_redu = backward_pass(
+                x_trj, u_trj, regulation_init, self.derivs)
+            x_trj_new, u_trj_new = forward_pass(
+                x_trj, u_trj, k_trj, K_trj, self.model.discrete_dynamics)
+            # Evaluate new trajectory, cost
             new_cost = self.cost.cost_trj(x_trj_new, u_trj_new)
             # Substract of first cost with new cost
             cost_redu = cost_trace[-1] - new_cost
@@ -61,8 +63,9 @@ class IterativeLQR(Regulator):
                 cost_trace.append(cost_trace[-1])
                 redu_ratio_trace.append(0)
 
-            # find minimum 
-            regulation_init = min(max(regulation_init, self.min_regu), self.max_regu)
+            # find minimum
+            regulation_init = min(
+                max(regulation_init, self.min_regu), self.max_regu)
             regu_trace.append(regulation_init)
             regu_trace.append(cost_redu)
 
@@ -70,7 +73,7 @@ class IterativeLQR(Regulator):
             if expected_cost_redu <= 1e-6:
                 break
             return x_trj, u_trj, cost_trace, regu_trace, redu_ratio_trace, redu_trace
-    
+
     def run_ilqr(self, x0, N, max_iter=50, regu_init=100):
         # First forward rollout
         u_trj = np.random.randn(N - 1, 2) * 0.0001
@@ -81,23 +84,31 @@ class IterativeLQR(Regulator):
         min_regu = 0.01
 
         # Setup traces
+        print(total_cost)
         cost_trace = [total_cost]
-        expected_cost_redu_trace = []
         redu_ratio_trace = [1]
         redu_trace = []
         regu_trace = [regu]
 
         # Run main loop
         for it in range(max_iter):
+            print(x_trj.shape)
+            print(u_trj.shape)
+
             # Backward and forward pass
-            k_trj, K_trj, expected_cost_redu = backward_pass(x_trj, u_trj, regu, self.derivs)
-            x_trj_new, u_trj_new = forward_pass(x_trj, u_trj, k_trj, K_trj, self.model.discrete_dynamics)
+            k_trj, K_trj, expected_cost_redu = backward_pass(
+                x_trj, u_trj, regu, self.derivs)
+            x_trj_new, u_trj_new = forward_pass(
+                x_trj, u_trj, k_trj, K_trj, self.model.discrete_dynamics)
             # Evaluate new trajectory
             total_cost = self.cost.cost_trj(x_trj_new, u_trj_new)
+            print("iter:", it, total_cost)
             cost_redu = cost_trace[-1] - total_cost
+            print("cost redu", cost_redu)
             redu_ratio = cost_redu / abs(expected_cost_redu)
             # Accept or reject iteration
             if cost_redu > 0:
+                print("improvement")
                 # Improvement! Accept new trajectories and lower regularization
                 redu_ratio_trace.append(redu_ratio)
                 cost_trace.append(total_cost)
@@ -107,6 +118,7 @@ class IterativeLQR(Regulator):
             else:
                 # Reject new trajectories and increase regularization
                 regu *= 2.0
+                print("Reject new trajectories")
                 cost_trace.append(cost_trace[-1])
                 redu_ratio_trace.append(0)
             regu = min(max(regu, min_regu), max_regu)
@@ -124,14 +136,14 @@ class IterativeLQR(Regulator):
 def Q_terms(l_x, l_u, l_xx, l_ux, l_uu, f_x, f_u, V_x, V_xx):
     # Write checker if the shape are the same as initial
     Q_x = np.zeros(l_x.shape)
-    Q_x = l_x + V_x.T @ f_x
     Q_u = np.zeros(l_u.shape)
-    Q_u = l_u + V_x.T @ f_u
     Q_xx = np.zeros(l_xx.shape)
-    Q_xx = l_xx + f_x.T @ V_xx @ f_x
     Q_ux = np.zeros(l_ux.shape)
-    Q_ux = l_ux + f_u.T @ V_xx @ f_x
     Q_uu = np.zeros(l_uu.shape)
+    Q_x = l_x + V_x.T @ f_x
+    Q_u = l_u + V_x.T @ f_u
+    Q_xx = l_xx + f_x.T @ V_xx @ f_x
+    Q_ux = l_ux + f_u.T @ V_xx @ f_x
     Q_uu = l_uu + f_u.T @ V_xx @ f_u
     return Q_x, Q_u, Q_xx, Q_ux, Q_uu
 
@@ -157,6 +169,7 @@ def V_terms(Q_x, Q_u, Q_xx, Q_ux, Q_uu, K, k):
 def expected_cost_reduction(Q_u, Q_uu, k):
     return -Q_u.T.dot(k) - 0.5 * k.T.dot(Q_uu.dot(k))
 
+
 @jit(forceobj=True)
 def forward_pass(x_trj, u_trj, k_trj, K_trj, dynamics):
     """Forward_pass.
@@ -179,6 +192,7 @@ def forward_pass(x_trj, u_trj, k_trj, K_trj, dynamics):
             K_trj[n, :] @ (x_trj_new[n, :] - x_trj[n, :])
         x_trj_new[n+1, :] = dynamics(x_trj_new[n, :], u_trj_new[n, :])
     return x_trj_new, u_trj_new
+
 
 @jit(forceobj=True)
 def backward_pass(x_trj, u_trj, regu, derivs, expected_cost_redu=0):
@@ -204,16 +218,22 @@ def backward_pass(x_trj, u_trj, regu, derivs, expected_cost_redu=0):
         # First compute derivatives, then the Q-terms
         l_x, l_u, l_xx, l_ux, l_uu, f_x, f_u = derivs.stage(
             x_trj[n, :], u_trj[n, :])
+        print("l_x", l_x.shape)
+        print("l_x", l_x.shape)
+        print("l_u", l_u.shape)
+        print("l_xx", l_xx.shape)
+        print("l_ux", l_ux.shape)
+        print("l_uu", l_uu.shape)
+        print("f_x", f_x)
+        print("f_u", f_u)
         Q_x, Q_u, Q_xx, Q_ux, Q_uu = Q_terms(
             l_x, l_u, l_xx, l_ux, l_uu, f_x, f_u, V_x, V_xx)
 
-        # We add regularization to ensure that Q_uu is invertible and nicely conditioned
-        Q_uu_regu = Q_uu + np.eye(Q_uu.shape[0]) * regu
-        k, K = gains(Q_uu_regu, Q_u, Q_ux)
-        k_trj[n, :] = k
-        K_trj[n, :, :] = K
-        V_x, V_xx = V_terms(Q_x, Q_u, Q_xx, Q_ux, Q_uu, K, k)
-        expected_cost_redu += expected_cost_reduction(Q_u, Q_uu, k)
+    #     # We add regularization to ensure that Q_uu is invertible and nicely conditioned
+    #     Q_uu_regu = Q_uu + np.eye(Q_uu.shape[0]) * regu
+    #     k, K = gains(Q_uu_regu, Q_u, Q_ux)
+    #     k_trj[n, :] = k
+    #     K_trj[n, :, :] = K
+    #     V_x, V_xx = V_terms(Q_x, Q_u, Q_xx, Q_ux, Q_uu, K, k)
+    #     expected_cost_redu += expected_cost_reduction(Q_u, Q_uu, k)
     return k_trj, K_trj, expected_cost_redu
-
-

@@ -21,13 +21,15 @@ class AWsimModel:
         """
         heading = jnp.asarray(x)[2]
         v = jnp.asarray(x)[3]
-        
+
         acceleration = jnp.asarray(u)[0]
         steering = jnp.asarray(u)[1]
+        acceleration = np.clip(acceleration, 0.01, 0.2)
+        steering = np.clip(steering, -1.0, 1.0)
 
         x_next = jnp.array(
             [v * jnp.cos(heading), v * jnp.sin(heading),
-             v * jnp.tan(steering)/ 0.3, acceleration]
+             v * jnp.tan(steering) / 0.3, acceleration]
         )
         return x + dt * x_next
 
