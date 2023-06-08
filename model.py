@@ -1,6 +1,54 @@
 import numpy as np
 import jax.numpy as jnp
 
+
+class AWsimModel:
+    def __init__(self):
+        # add number of states and number of inputs
+        # avoid wrong shapes
+        print("AWSIM model")
+
+    def discrete_dynamics(self, x, u, dt=0.1):
+        """Discrete model
+        Args:
+            x: states variables [state_size]
+                [x position, y position, heading, speed]
+            u: control input [action_size]
+                [acceleration, steering]
+            dt: sampling time
+        Returns:
+            Next state [state_size].
+        """
+        heading = jnp.asarray(x)[2]
+        v = jnp.asarray(x)[3]
+        
+        acceleration = jnp.asarray(u)[0]
+        steering = jnp.asarray(u)[1]
+
+        x_next = jnp.array(
+            [v * jnp.cos(heading), v * jnp.sin(heading),
+             v * jnp.tan(steering)/ 0.3, acceleration]
+        )
+        return x + dt * x_next
+
+    def rollout(self, x0, u_trj):
+        """Rollout trajectory
+        Args:
+            x0: initial states [state_size]
+                [x position, y position, heading, speed]
+            u_trj: control trajectory: shape [N, number of states]
+                [acceleration, steering]
+            dt: sampling time
+        Returns:
+            x_trj: state trajectory: shape[N+1, number of states].
+        """
+        x_trj = np.zeros((u_trj.shape[0] + 1, x0.shape[0]))
+        x_trj[0] = x0
+        for n in range((u_trj.shape[0])):
+            x_trj[n+1] = self.discrete_dynamics(x_trj[n], u_trj[n])
+        return x_trj
+
+
 class CarModel:
     def __init__(self):
         # add number of states and number of inputs
