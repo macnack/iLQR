@@ -4,8 +4,6 @@ from cost import CostCircle
 from auto_derivatives import Derivatives
 from iLQR import IterativeLQR
 import matplotlib.pyplot as plt
-from jax import jacfwd, hessian, jit
-import jax.numpy as jnp
 import matplotlib as mpl
 n_x = 5
 n_u = 2
