@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 
 class AWsimModel:
-    def __init__(self):
+    def __init__(self, dt = 0.1):
         # add number of states and number of inputs
         # avoid wrong shapes
         print("AWSIM model")
@@ -29,7 +29,7 @@ class AWsimModel:
 
         x_next = jnp.array(
             [v * jnp.cos(heading), v * jnp.sin(heading),
-             v * jnp.tan(steering) / 0.3, acceleration]
+             v * jnp.tan(steering) / 0.28, acceleration]
         )
         return x + dt * x_next
 
@@ -52,9 +52,10 @@ class AWsimModel:
 
 
 class CarModel:
-    def __init__(self):
+    def __init__(self, dt=0.1):
         # add number of states and number of inputs
         # avoid wrong shapes
+        self.dt = dt
         print("Car model")
 
     def continuous_dynamics(self, x, u):
@@ -76,7 +77,7 @@ class CarModel:
         )
         return x_next
 
-    def discrete_dynamics(self, x, u, dt=0.1):
+    def discrete_dynamics(self, x, u):
         """Discrete model
         Args:
             x: states variables [state_size]
@@ -90,11 +91,15 @@ class CarModel:
         heading = jnp.asarray(x)[2]
         v = jnp.asarray(x)[3]
         steer = jnp.asarray(x)[4]
+        acceleration = jnp.asarray(u)[0]
+        # acceleration = jnp.clip(acceleration, 0.01, 0.2)
+        sterring = jnp.asarray(u)[1]
+        # sterring = jnp.clip(sterring, -1.0, 1.0)
         x_next = jnp.array(
             [v * jnp.cos(heading), v * jnp.sin(heading),
-             v * jnp.tan(steer), jnp.asarray(u)[0], jnp.asarray(u)[1]]
+             v * jnp.tan(steer), acceleration, sterring]
         )
-        return x + dt * x_next
+        return x + self.dt * x_next
 
     def rollout(self, x0, u_trj):
         """Rollout trajectory
