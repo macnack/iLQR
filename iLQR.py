@@ -74,9 +74,12 @@ class IterativeLQR(Regulator):
                 break
             return x_trj, u_trj, cost_trace, regu_trace, redu_ratio_trace, redu_trace
 
-    def run_ilqr(self, x0, N, max_iter=50, regu_init=100):
+    def run_ilqr(self, x0, N, max_iter=50, regu_init=100, u_init=None):
         # First forward rollout
-        u_trj = np.random.randn(N - 1, 2) * 0.0001
+        if u_init is not None:
+            u_trj = u_init
+        else:
+            u_trj = np.random.randn(N - 1, 2) * 0.0001
         x_trj = self.model.rollout(x0=x0, u_trj=u_trj)
         total_cost = self.cost.cost_trj(x_trj, u_trj)
         regu = regu_init
@@ -84,7 +87,7 @@ class IterativeLQR(Regulator):
         min_regu = 0.01
 
         # Setup traces
-        print(total_cost)
+        print("total_cost", total_cost)
         cost_trace = [total_cost]
         redu_ratio_trace = [1]
         redu_trace = []
@@ -92,9 +95,6 @@ class IterativeLQR(Regulator):
 
         # Run main loop
         for it in range(max_iter):
-            print(x_trj.shape)
-            print(u_trj.shape)
-
             # Backward and forward pass
             k_trj, K_trj, expected_cost_redu = backward_pass(
                 x_trj, u_trj, regu, self.derivs)
@@ -107,7 +107,9 @@ class IterativeLQR(Regulator):
             print("cost redu", cost_redu)
             redu_ratio = cost_redu / abs(expected_cost_redu)
             # Accept or reject iteration
+            print("#"*20)
             if cost_redu > 0:
+                print("!"*30)
                 print("improvement")
                 # Improvement! Accept new trajectories and lower regularization
                 redu_ratio_trace.append(redu_ratio)
@@ -140,11 +142,22 @@ def Q_terms(l_x, l_u, l_xx, l_ux, l_uu, f_x, f_u, V_x, V_xx):
     Q_xx = np.zeros(l_xx.shape)
     Q_ux = np.zeros(l_ux.shape)
     Q_uu = np.zeros(l_uu.shape)
+    # print(l_x.shape, V_x.T.shape, f_x.shape)
+    # print(l_u.shape, V_x.T.shape, f_u.shape)
+    # print(l_xx.shape, f_x.T.shape, V_xx.shape, f_x.shape)
+    # print(l_ux.shape, f_u.T.shape, V_xx.shape, f_x.shape)
+    # print(l_uu.shape, f_u.T.shape, V_xx.shape, f_x.shape)
+
     Q_x = l_x + V_x.T @ f_x
+    # print(Q_x.shape, l_x.shape)
     Q_u = l_u + V_x.T @ f_u
+    # print(Q_u.shape, l_u.shape)
     Q_xx = l_xx + f_x.T @ V_xx @ f_x
+    # print(Q_xx.shape, l_xx.shape)
     Q_ux = l_ux + f_u.T @ V_xx @ f_x
+    # print(Q_ux.shape, l_ux.shape)
     Q_uu = l_uu + f_u.T @ V_xx @ f_u
+    # print(Q_uu.shape, l_uu.shape)
     return Q_x, Q_u, Q_xx, Q_ux, Q_uu
 
 
@@ -218,22 +231,14 @@ def backward_pass(x_trj, u_trj, regu, derivs, expected_cost_redu=0):
         # First compute derivatives, then the Q-terms
         l_x, l_u, l_xx, l_ux, l_uu, f_x, f_u = derivs.stage(
             x_trj[n, :], u_trj[n, :])
-        print("l_x", l_x.shape)
-        print("l_x", l_x.shape)
-        print("l_u", l_u.shape)
-        print("l_xx", l_xx.shape)
-        print("l_ux", l_ux.shape)
-        print("l_uu", l_uu.shape)
-        print("f_x", f_x)
-        print("f_u", f_u)
         Q_x, Q_u, Q_xx, Q_ux, Q_uu = Q_terms(
             l_x, l_u, l_xx, l_ux, l_uu, f_x, f_u, V_x, V_xx)
 
-    #     # We add regularization to ensure that Q_uu is invertible and nicely conditioned
-    #     Q_uu_regu = Q_uu + np.eye(Q_uu.shape[0]) * regu
-    #     k, K = gains(Q_uu_regu, Q_u, Q_ux)
-    #     k_trj[n, :] = k
-    #     K_trj[n, :, :] = K
-    #     V_x, V_xx = V_terms(Q_x, Q_u, Q_xx, Q_ux, Q_uu, K, k)
-    #     expected_cost_redu += expected_cost_reduction(Q_u, Q_uu, k)
+        # We add regularization to ensure that Q_uu is invertible and nicely conditioned
+        Q_uu_regu = Q_uu + np.eye(Q_uu.shape[0]) * regu
+        k, K = gains(Q_uu_regu, Q_u, Q_ux)
+        k_trj[n, :] = k
+        K_trj[n, :, :] = K
+        V_x, V_xx = V_terms(Q_x, Q_u, Q_xx, Q_ux, Q_uu, K, k)
+        expected_cost_redu += expected_cost_reduction(Q_u, Q_uu, k)
     return k_trj, K_trj, expected_cost_redu
