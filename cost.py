@@ -1,4 +1,6 @@
 import jax.numpy as jnp
+from jax import lax
+from jax.scipy.special import logsumexp
 import abc
 from numba import njit, jit
 
@@ -27,30 +29,46 @@ class Cost(metaclass=abc.ABCMeta):
         pass
 
 
+@jit(forceobj=True)
+def distance_func_looper(x, ref):
+    delta_x = x[0]-ref[0]  # ref[0]
+    delta_y = x[1]-ref[1]  # ref[1]
+    return x, -(delta_x**2.0 + delta_y**2.0)
+
+
+@jit(forceobj=True)
+def distance_func(x, route):
+    x, ret = lax.scan(distance_func_looper, x, route)
+    return -logsumexp(ret)
+
+
 class CostPath(Cost):
-    def __init__(self, path, velocity=.2, eps=1e-6, dt=0.1):
-        self.r = 2.0
+    def __init__(self, path, velocity=.1, eps=1e-6, dt=0.1, goal=None):
         self.v_target = velocity
         self.eps = eps
         self.dt = dt
         self.path = path
-        self.ref_x = 0
-        self.ref_y = 0
-        self.ref_pose = jnp.zeros(2)
+        self.goal = -1
+        if goal is not None:
+            self.goal = int(goal)
+            if goal > len(path):
+                self.goal = len(path)
 
-    def straight_pos(self, x, eps):
-        diff = x[:2] - self.ref_pose
-        c_straight = jnp.sqrt(jnp.square(diff))
+    def straight_pos(self, x, ref):
+        diff_x = x[0] - ref[0]
+        diff_y = x[1] - ref[1]
+        c_straight = jnp.square(
+            jnp.sqrt(jnp.square(diff_x) + jnp.square(diff_y)))
         return c_straight
 
     def cost_stage(self, x, u):
-        c_straight = self.straight_pos(x, self.eps)
+        c_straight = distance_func(x, self.path)
         c_speed = cost_speed(x, self.v_target)
-        c_control = cost_control(u, self.dt)
+        c_control = cost_control(jnp.sin(u), self.dt)
         return c_straight + c_speed + c_control
 
     def cost_final(self, x):
-        c_straight = self.straight_pos(x, self.eps)
+        c_straight = self.straight_pos(x, self.path[self.goal])
         c_speed = cost_speed(x, self.v_target)
         return c_straight + c_speed
 
@@ -65,10 +83,6 @@ class CostPath(Cost):
         """
         total = 0.0
         for n in range(u_trj.shape[0]):
-            self.ref_x, self.ref_y = self.path[n]
-            self.ref_pose = self.path[n]
-            # print("ref",  self.path[n].shape,  self.path[n])
-            # print("x_tr", x_trj[n][:2].shape, x_trj[n][:2])
             total += self.cost_stage(x_trj[n], u_trj[n])
         total += self.cost_final(x_trj[-1])
         return total
