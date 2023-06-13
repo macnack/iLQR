@@ -92,12 +92,12 @@ class CarModel:
         v = jnp.asarray(x)[3]
         steer = jnp.asarray(x)[4]
         acceleration = jnp.asarray(u)[0]
-        acceleration = jnp.clip(acceleration, 0.0, 1.0)
+        acceleration = jnp.clip(acceleration, -0.3, 1.0)
         sterring = jnp.asarray(u)[1]
-        sterring = jnp.clip(sterring, -1.0, 1.0)
+        sterring = jnp.clip(sterring, -0.9, 0.9)
         x_next = jnp.array(
-            [v * jnp.cos(heading), v * jnp.sin(heading),
-             v * jnp.tan(steer), acceleration, sterring]
+            [v * jnp.cos(heading) , v * jnp.sin(heading),
+             v * jnp.tan(steer) / 0.28, acceleration, sterring]
         )
         return x + self.dt * x_next
 

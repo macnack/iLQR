@@ -1,4 +1,4 @@
-from regulator import Regulator
+from .regulator import Regulator
 import numpy as np
 from numba import njit, jit
 
